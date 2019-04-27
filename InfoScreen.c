@@ -152,6 +152,7 @@ void InfoScreen_run(InfoScreen* this) {
          IncSet_activate(this->inc, INC_SEARCH, panel);
          break;
       case KEY_F(4):
+      case '\023':
       case '\\':
          IncSet_activate(this->inc, INC_FILTER, panel);
          break;
@@ -164,7 +165,6 @@ void InfoScreen_run(InfoScreen* this) {
          clear();
          InfoScreen_draw(this);
          break;
-      case 'q':
       case 27:
       case KEY_F(10):
          looping = false;

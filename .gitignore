@@ -40,3 +40,4 @@ ltmain.sh
 m4/
 missing
 stamp-h1
+/compile_commands.json

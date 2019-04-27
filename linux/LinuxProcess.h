@@ -78,7 +78,13 @@ typedef enum LinuxProcessFields {
    PERCENT_IO_DELAY = 117,
    PERCENT_SWAP_DELAY = 118,
    #endif
-   LAST_PROCESSFIELD = 119,
+   RAW_READ_RATE = 147,
+   RAW_WRITE_RATE = 148,
+   RAW_RATE = 149,
+   NET_READ_RATE = 150,
+   NET_WRITE_RATE = 151,
+   NET_RATE = 152,
+   LAST_PROCESSFIELD = 153,
 } LinuxProcessField;
 
 #include "IOPriority.h"
@@ -108,9 +114,13 @@ typedef struct LinuxProcess_ {
    unsigned long long io_write_bytes;
    unsigned long long io_cancelled_write_bytes;
    unsigned long long io_rate_read_time;
-   unsigned long long io_rate_write_time;   
+   unsigned long long io_rate_write_time;
    double io_rate_read_bps;
    double io_rate_write_bps;
+   unsigned long long raw_rate_read_time;
+   unsigned long long raw_rate_write_time;
+   double raw_rate_read_bps;
+   double raw_rate_write_bps;
    #endif
    #ifdef HAVE_OPENVZ
    unsigned int ctid;
@@ -133,6 +143,12 @@ typedef struct LinuxProcess_ {
    float blkio_delay_percent;
    float swapin_delay_percent;
    #endif
+   unsigned long long net_read_bytes;
+   unsigned long long net_write_bytes;
+   unsigned long long net_rate_read_time;
+   unsigned long long net_rate_write_time;
+   double net_rate_read_bps;
+   double net_rate_write_bps;
 } LinuxProcess;
 
 #ifndef Process_isKernelThread
@@ -144,7 +160,7 @@ typedef struct LinuxProcess_ {
 #endif
 
 
-long long btime; /* semi-global */
+extern long long btime; /* semi-global */
 
 extern ProcessFieldData Process_fields[];
 

@@ -31,6 +31,7 @@ in the source distribution for its full text.
 #include <sys/types.h>
 
 #define PROCESS_FLAG_IO 0x0001
+#define PROCESS_FLAG_NET 0x0002
 
 typedef enum ProcessFields {
    NULL_PROCESSFIELD = 0,

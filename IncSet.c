@@ -10,6 +10,7 @@ in the source distribution for its full text.
 #include "Panel.h"
 #include "ListItem.h"
 #include "CRT.h"
+#include <ctype.h>
 #include <string.h>
 #include <stdlib.h>
 
@@ -153,7 +154,7 @@ bool IncSet_handleKey(IncSet* this, int ch, Panel* panel, IncMode_GetPanelValue 
          }
       }
       doSearch = false;
-   } else if (ch < 255 && isprint((char)ch)) {
+   } else if (ch < 255 && isprint((char)ch) && ! isupper(ch)) {
       if (mode->index < INCMODE_MAX) {
          mode->buffer[mode->index] = ch;
          mode->index++;
@@ -177,12 +178,24 @@ bool IncSet_handleKey(IncSet* this, int ch, Panel* panel, IncMode_GetPanelValue 
       } else {
          doSearch = false;
       }
+   } else if (ch == 21) {
+      if (mode->index > 0) {
+         mode->index = 0;
+         mode->buffer[mode->index] = 0;
+         if (mode->isFilter) {
+            filterChanged = true;
+            this->filtering = false;
+            IncMode_reset(mode);
+         }
+      } else {
+         doSearch = false;
+      }
    } else if (ch == KEY_RESIZE) {
      Panel_resize(panel, COLS, LINES-panel->y-1);
    } else {
       if (mode->isFilter) {
-         filterChanged = true;
          if (ch == 27) {
+            filterChanged = true;
             this->filtering = false;
             IncMode_reset(mode);
          }

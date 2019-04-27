@@ -25,6 +25,7 @@ in the source distribution for its full text.
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
+#include <signal.h>
 
 //#link m
 
@@ -34,7 +35,7 @@ static void printVersionFlag() {
          stdout);
    exit(0);
 }
- 
+
 static void printHelpFlag() {
    fputs("htop " VERSION " - " COPYRIGHT "\n"
          "Released under the GNU GPL.\n\n"
@@ -168,6 +169,15 @@ static void millisleep(unsigned long millisec) {
    }
 }
 
+volatile int suspend = 0;
+
+static void sig_usr(int signo) {
+   if (signo == SIGUSR1)
+      suspend = 1;
+   else if (signo == SIGUSR2)
+      suspend = 0;
+}
+
 int main(int argc, char** argv) {
 
    char *lc_ctype = getenv("LC_CTYPE");
@@ -186,12 +196,12 @@ int main(int argc, char** argv) {
       exit(1);
    }
 #endif
-   
+
    Process_setupColumnWidths();
-   
+
    UsersTable* ut = UsersTable_new();
    ProcessList* pl = ProcessList_new(ut, flags.pidWhiteList, flags.userId);
-   
+
    Settings* settings = Settings_new(pl->cpuCount);
    pl->settings = settings;
 
@@ -201,18 +211,18 @@ int main(int argc, char** argv) {
 
    if (flags.delay != -1)
       settings->delay = flags.delay;
-   if (!flags.useColors) 
+   if (!flags.useColors)
       settings->colorScheme = COLORSCHEME_MONOCHROME;
    if (flags.treeView)
       settings->treeView = true;
 
    CRT_init(settings->delay, settings->colorScheme);
-   
+
    MainPanel* panel = MainPanel_new();
    ProcessList_setPanel(pl, (Panel*) panel);
 
    MainPanel_updateTreeFunctions(panel, settings->treeView);
-      
+
    if (flags.sortKey > 0) {
       settings->sortKey = flags.sortKey;
       settings->treeView = false;
@@ -228,7 +238,7 @@ int main(int argc, char** argv) {
       .header = header,
    };
    MainPanel_setState(panel, &state);
-   
+
    ScreenManager* scr = ScreenManager_new(0, header->height, 0, -1, HORIZONTAL, header, settings, true);
    ScreenManager_add(scr, (Panel*) panel, -1);
 
@@ -236,24 +246,31 @@ int main(int argc, char** argv) {
    millisleep(75);
    ProcessList_scan(pl);
 
-   ScreenManager_run(scr, NULL, NULL);   
-   
+   if (getenv("HTOP_SUSPEND"))
+      suspend = 1;
+
+   if (signal(SIGUSR1, sig_usr) == SIG_ERR)
+      fprintf(stderr, "can't catch SIGUSR1");
+
+   if (signal(SIGUSR2, sig_usr) == SIG_ERR)
+      fprintf(stderr, "can't catch SIGUSR2");
+
+   ScreenManager_run(scr, NULL, NULL);
+
    attron(CRT_colors[RESET_COLOR]);
    mvhline(LINES-1, 0, ' ', COLS);
    attroff(CRT_colors[RESET_COLOR]);
    refresh();
-   
+
    CRT_done();
-   if (settings->changed)
-      Settings_write(settings);
    Header_delete(header);
    ProcessList_delete(pl);
 
    ScreenManager_delete(scr);
-   
+
    UsersTable_delete(ut);
    Settings_delete(settings);
-   
+
    if(flags.pidWhiteList) {
       Hashtable_delete(flags.pidWhiteList);
    }

@@ -47,6 +47,8 @@ Panel* ScreenManager_remove(ScreenManager* this, int idx);
 
 void ScreenManager_resize(ScreenManager* this, int x1, int y1, int x2, int y2);
 
+extern volatile int suspend;
+
 void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey);
 
 #endif

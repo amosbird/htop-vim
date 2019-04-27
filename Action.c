@@ -66,7 +66,6 @@ Object* Action_pickFromVector(State* st, Panel* list, int x) {
    Panel* panel = st->panel;
    Header* header = st->header;
    Settings* settings = st->settings;
-   
    int y = panel->y;
    ScreenManager* scr = ScreenManager_new(0, header->height, 0, -1, HORIZONTAL, header, settings, false);
    scr->allowFocusChange = false;
@@ -217,6 +216,14 @@ static Htop_Reaction actionSortByTime(State* st) {
    return Action_setSortKey(st->settings, TIME);
 }
 
+static Htop_Reaction actionSortByDisk(State* st) {
+   return Action_setSortKey(st->settings, IO_RATE);
+}
+
+static Htop_Reaction actionSortByNet(State* st) {
+   return Action_setSortKey(st->settings, RAW_RATE);
+}
+
 static Htop_Reaction actionToggleKernelThreads(State* st) {
    st->settings->hideKernelThreads = !st->settings->hideKernelThreads;
    return HTOP_RECALCULATE | HTOP_SAVE_SETTINGS;
@@ -241,9 +248,11 @@ static Htop_Reaction actionToggleTreeView(State* st) {
 }
 
 static Htop_Reaction actionIncFilter(State* st) {
+   st->pl->incFilter = "";
    IncSet* inc = ((MainPanel*)st->panel)->inc;
+   inc->modes[1].index = 0;
+   inc->modes[1].buffer[0] = 0;
    IncSet_activate(inc, INC_FILTER, st->panel);
-   st->pl->incFilter = IncSet_filter(inc);
    return HTOP_REFRESH | HTOP_KEEP_FOLLOWING;
 }
 
@@ -269,6 +278,12 @@ static Htop_Reaction actionInvertSortOrder(State* st) {
 
 static Htop_Reaction actionSetSortColumn(State* st) {
    return sortBy(st);
+}
+
+static Htop_Reaction actionSaveSettings(State* st) {
+   if (st->settings->changed)
+      Settings_write(st->settings);
+   return HTOP_OK;
 }
 
 static Htop_Reaction actionExpandOrCollapse(State* st) {
@@ -297,7 +312,7 @@ static Htop_Reaction actionSetAffinity(State* st) {
       return HTOP_OK;
 #if (HAVE_LIBHWLOC || HAVE_LINUX_AFFINITY)
    Panel* panel = st->panel;
-   
+
    Process* p = (Process*) Panel_getSelected(panel);
    if (!p) return HTOP_OK;
    Affinity* affinity = Affinity_get(p, st->pl);
@@ -378,6 +393,68 @@ static Htop_Reaction actionLsof(State* st) {
    return HTOP_REFRESH | HTOP_REDRAW_BAR;
 }
 
+static Htop_Reaction actionGdb(State* st) {
+   Process* p = (Process*) Panel_getSelected(st->panel);
+   if (!p) return HTOP_OK;
+   char buffer[1001];
+   xSnprintf(buffer, sizeof(buffer), "tmux switch-client -t amos; tmux run -t amos \"fish -c 'tmuxgdb -p %d'\"", p->pid);
+   system(buffer);
+   return HTOP_OK;
+}
+
+static Htop_Reaction actionYankCommand(State* st) {
+   Process* p = (Process*) Panel_getSelected(st->panel);
+   if (!p) return HTOP_OK;
+   FILE * f = popen("osc52clip", "w");
+   fwrite(p->comm, 1, p->commLen, f);
+   pclose(f);
+   return HTOP_OK;
+}
+
+static Htop_Reaction actionPerfTop(State* st) {
+   Process* p = (Process*) Panel_getSelected(st->panel);
+   if (!p) return HTOP_OK;
+   char buffer[1001];
+   xSnprintf(buffer, sizeof(buffer), "perf top -p %d", p->pid);
+   system(buffer);
+   clear();
+   CRT_enableDelay();
+   return HTOP_REFRESH | HTOP_REDRAW_BAR;
+}
+
+static Htop_Reaction actionPerfFlame(State* st) {
+   Process* p = (Process*) Panel_getSelected(st->panel);
+   if (!p) return HTOP_OK;
+   char buffer[1001];
+   xSnprintf(buffer, sizeof(buffer), "tmux split-window -d -p 15 'perfflametmux -p %d'; tmux select-pane -D", p->pid);
+   system(buffer);
+   clear();
+   CRT_enableDelay();
+   return HTOP_REFRESH | HTOP_REDRAW_BAR;
+}
+
+static Htop_Reaction actionTopFiles(State* st) {
+   Process* p = (Process*) Panel_getSelected(st->panel);
+   if (!p) return HTOP_OK;
+   char buffer[1001];
+   xSnprintf(buffer, sizeof(buffer), "tmux split-window -d -p 50 'topfiles %d'; tmux select-pane -D", p->pid);
+   system(buffer);
+   clear();
+   CRT_enableDelay();
+   return HTOP_REFRESH | HTOP_REDRAW_BAR;
+}
+
+static Htop_Reaction actionTopNet(State* st) {
+   Process* p = (Process*) Panel_getSelected(st->panel);
+   if (!p) return HTOP_OK;
+   char buffer[1001];
+   xSnprintf(buffer, sizeof(buffer), "tmux split-window -d -p 50 'topnet %d'; tmux select-pane -D", p->pid);
+   system(buffer);
+   clear();
+   CRT_enableDelay();
+   return HTOP_REFRESH | HTOP_REDRAW_BAR;
+}
+
 static Htop_Reaction actionStrace(State* st) {
    Process* p = (Process*) Panel_getSelected(st->panel);
    if (!p) return HTOP_OK;
@@ -405,14 +482,14 @@ static Htop_Reaction actionRedraw() {
    return HTOP_REFRESH | HTOP_REDRAW_BAR;
 }
 
-static const struct { const char* key; const char* info; } helpLeft[] = {
-   { .key = " Arrows: ", .info = "scroll process list" },
+static struct { const char* key; const char* info; } helpLeft[] = {
+   { .key = "   hjkl: ", .info = "scroll process list" },
    { .key = " Digits: ", .info = "incremental PID search" },
    { .key = "   F3 /: ", .info = "incremental name search" },
    { .key = "   F4 \\: ",.info = "incremental name filtering" },
    { .key = "   F5 t: ", .info = "tree view" },
    { .key = "      p: ", .info = "toggle program path" },
-   { .key = "      u: ", .info = "show processes of a single user" },
+   { .key = "      v: ", .info = "show processes of a single user" },
    { .key = "      H: ", .info = "hide/show user process threads" },
    { .key = "      K: ", .info = "hide/show kernel threads" },
    { .key = "      F: ", .info = "cursor follows process" },
@@ -427,7 +504,7 @@ static const struct { const char* key; const char* info; } helpRight[] = {
    { .key = "  Space: ", .info = "tag process" },
    { .key = "      c: ", .info = "tag process and its children" },
    { .key = "      U: ", .info = "untag all processes" },
-   { .key = "   F9 k: ", .info = "kill process/tagged processes" },
+   { .key = "   F9 x: ", .info = "kill process/tagged processes" },
    { .key = "   F7 ]: ", .info = "higher priority (root only)" },
    { .key = "   F8 [: ", .info = "lower priority (+ nice)" },
 #if (HAVE_LIBHWLOC || HAVE_LINUX_AFFINITY)
@@ -435,11 +512,11 @@ static const struct { const char* key; const char* info; } helpRight[] = {
 #endif
    { .key = "      e: ", .info = "show process environment" },
    { .key = "      i: ", .info = "set IO priority" },
-   { .key = "      l: ", .info = "list open files with lsof" },
+   { .key = "      L: ", .info = "list open files with lsof" },
    { .key = "      s: ", .info = "trace syscalls with strace" },
    { .key = "         ", .info = "" },
    { .key = " F2 C S: ", .info = "setup" },
-   { .key = "   F1 h: ", .info = "show this help screen" },
+   { .key = "   F1 ?: ", .info = "show this help screen" },
    { .key = "  F10 q: ", .info = "quit" },
    { .key = NULL, .info = NULL }
 };
@@ -550,12 +627,15 @@ void Action_setBindings(Htop_Action* keys) {
    keys['M'] = actionSortByMemory;
    keys['T'] = actionSortByTime;
    keys['P'] = actionSortByCPU;
+   keys['D'] = actionSortByDisk;
+   keys['N'] = actionSortByNet;
    keys['H'] = actionToggleUserlandThreads;
    keys['K'] = actionToggleKernelThreads;
    keys['p'] = actionToggleProgramPath;
    keys['t'] = actionToggleTreeView;
    keys[KEY_F(5)] = actionToggleTreeView;
    keys[KEY_F(4)] = actionIncFilter;
+   keys['\023'] = actionIncFilter; // Ctrl-s
    keys['\\'] = actionIncFilter;
    keys[KEY_F(3)] = actionIncSearch;
    keys['/'] = actionIncSearch;
@@ -567,34 +647,37 @@ void Action_setBindings(Htop_Action* keys) {
    keys['I'] = actionInvertSortOrder;
    keys[KEY_F(6)] = actionExpandCollapseOrSortColumn;
    keys[KEY_F(18)] = actionExpandCollapseOrSortColumn;
+   keys['o'] = actionExpandCollapseOrSortColumn;
    keys['<'] = actionSetSortColumn;
    keys[','] = actionSetSortColumn;
    keys['>'] = actionSetSortColumn;
    keys['.'] = actionSetSortColumn;
    keys[KEY_F(10)] = actionQuit;
-   keys['q'] = actionQuit;
    keys['a'] = actionSetAffinity;
    keys[KEY_F(9)] = actionKill;
-   keys['k'] = actionKill;
    keys[KEY_RECLICK] = actionExpandOrCollapse;
+   keys['x'] = actionKill;
    keys['+'] = actionExpandOrCollapse;
    keys['='] = actionExpandOrCollapse;
    keys['-'] = actionExpandOrCollapse;
    keys['\177'] = actionCollapseIntoParent;
-   keys['u'] = actionFilterByUser;
-   keys['F'] = Action_follow;
-   keys['S'] = actionSetup;
+   keys['v'] = actionFilterByUser;
+   keys['F'] = actionTopFiles;
+   keys['B'] = actionTopNet;
+   keys['S'] = actionGdb;
+   keys['y'] = actionYankCommand;
+   keys['E'] = actionPerfTop;
+   keys['A'] = actionPerfFlame;
    keys['C'] = actionSetup;
    keys[KEY_F(2)] = actionSetup;
-   keys['l'] = actionLsof;
+   keys['L'] = actionLsof;
    keys['s'] = actionStrace;
    keys[' '] = actionTag;
    keys['\014'] = actionRedraw; // Ctrl+L
    keys[KEY_F(1)] = actionHelp;
-   keys['h'] = actionHelp;
    keys['?'] = actionHelp;
    keys['U'] = actionUntagAll;
    keys['c'] = actionTagAllChildren;
    keys['e'] = actionShowEnvScreen;
+   keys['w'] = actionSaveSettings;
 }
-

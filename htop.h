@@ -14,6 +14,8 @@ in the source distribution for its full text.
 // ----------------------------------------
 
 
+extern volatile int suspend;
+
 int main(int argc, char** argv);
 
 #endif
