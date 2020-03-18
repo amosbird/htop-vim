@@ -69,7 +69,7 @@ static HandlerResult MainPanel_eventHandler(Panel* super, int ch) {
    MainPanel* this = (MainPanel*) super;
 
    HandlerResult result = IGNORED;
-   
+
    Htop_Reaction reaction = HTOP_OK;
 
    if (EVENT_IS_HEADER_CLICK(ch)) {
@@ -84,7 +84,7 @@ static HandlerResult MainPanel_eventHandler(Panel* super, int ch) {
       } else {
          reaction |= Action_setSortKey(settings, field);
       }
-      reaction |= HTOP_RECALCULATE | HTOP_REDRAW_BAR | HTOP_SAVE_SETTINGS; 
+      reaction |= HTOP_RECALCULATE | HTOP_REDRAW_BAR | HTOP_SAVE_SETTINGS;
       result = HANDLED;
    } else if (ch != ERR && this->inc->active) {
       bool filterChanged = IncSet_handleKey(this->inc, ch, super, (IncMode_GetPanelValue) MainPanel_getValue, NULL);
@@ -98,6 +98,8 @@ static HandlerResult MainPanel_eventHandler(Panel* super, int ch) {
       }
       result = HANDLED;
    } else if (ch == 27) {
+      this->state->pl->incFilter = NULL;
+      reaction = HTOP_REFRESH | HTOP_REDRAW_BAR;
       return HANDLED;
    } else if (ch != ERR && ch > 0 && ch < KEY_MAX && this->keys[ch]) {
       reaction |= (this->keys[ch])(this->state);
@@ -110,6 +112,20 @@ static HandlerResult MainPanel_eventHandler(Panel* super, int ch) {
       } else {
          reaction |= HTOP_KEEP_FOLLOWING;
       }
+      switch (ch) {
+      case KEY_LEFT:
+      case 'h':
+         if (super->scrollH > 0) {
+            super->scrollH -= CRT_scrollHAmount;
+            super->needsRedraw = true;
+         }
+         return HANDLED;
+      case KEY_RIGHT:
+      case 'l':
+         super->scrollH += CRT_scrollHAmount;
+         super->needsRedraw = true;
+         return HANDLED;
+      }
    }
 
    if (reaction & HTOP_REDRAW_BAR) {
@@ -121,7 +137,7 @@ static HandlerResult MainPanel_eventHandler(Panel* super, int ch) {
    }
    if (reaction & HTOP_REFRESH) {
       result |= REDRAW;
-   }      
+   }
    if (reaction & HTOP_RECALCULATE) {
       result |= RESCAN;
    }

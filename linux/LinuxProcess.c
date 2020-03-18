@@ -87,7 +87,13 @@ typedef enum LinuxProcessFields {
    PERCENT_IO_DELAY = 117,
    PERCENT_SWAP_DELAY = 118,
    #endif
-   LAST_PROCESSFIELD = 119,
+   RAW_READ_RATE = 147,
+   RAW_WRITE_RATE = 148,
+   RAW_RATE = 149,
+   NET_READ_RATE = 150,
+   NET_WRITE_RATE = 151,
+   NET_RATE = 152,
+   LAST_PROCESSFIELD = 153,
 } LinuxProcessField;
 
 #include "IOPriority.h"
@@ -120,6 +126,10 @@ typedef struct LinuxProcess_ {
    unsigned long long io_rate_write_time;   
    double io_rate_read_bps;
    double io_rate_write_bps;
+   unsigned long long raw_rate_read_time;
+   unsigned long long raw_rate_write_time;
+   double raw_rate_read_bps;
+   double raw_rate_write_bps;
    #endif
    #ifdef HAVE_OPENVZ
    unsigned int ctid;
@@ -142,6 +152,12 @@ typedef struct LinuxProcess_ {
    float blkio_delay_percent;
    float swapin_delay_percent;
    #endif
+   unsigned long long net_read_bytes;
+   unsigned long long net_write_bytes;
+   unsigned long long net_rate_read_time;
+   unsigned long long net_rate_write_time;
+   double net_rate_read_bps;
+   double net_rate_write_bps;
 } LinuxProcess;
 
 #ifndef Process_isKernelThread
@@ -228,7 +244,13 @@ ProcessFieldData Process_fields[] = {
    [IO_READ_RATE] = { .name = "IO_READ_RATE", .title = "  DISK READ ", .description = "The I/O rate of read(2) in bytes per second for the process", .flags = PROCESS_FLAG_IO, },
    [IO_WRITE_RATE] = { .name = "IO_WRITE_RATE", .title = " DISK WRITE ", .description = "The I/O rate of write(2) in bytes per second for the process", .flags = PROCESS_FLAG_IO, },
    [IO_RATE] = { .name = "IO_RATE", .title = "   DISK R/W ", .description = "Total I/O rate in bytes per second", .flags = PROCESS_FLAG_IO, },
+   [RAW_READ_RATE] = { .name = "RAW_READ_RATE", .title = "   RAW READ ", .description = "The I/O rate of read(2) in bytes per second for the process", .flags = PROCESS_FLAG_IO, },
+   [RAW_WRITE_RATE] = { .name = "RAW_WRITE_RATE", .title = "  RAW WRITE ", .description = "The I/O rate of write(2) in bytes per second for the process", .flags = PROCESS_FLAG_IO, },
+   [RAW_RATE] = { .name = "RAW_RATE", .title = "    RAW R/W ", .description = "Total I/O rate in bytes per second", .flags = PROCESS_FLAG_IO, },
 #endif
+   [NET_READ_RATE] = { .name = "NET_READ_RATE", .title = "  NET READ ", .description = "The I/O rate of read(2) in bytes per second for the process", .flags = PROCESS_FLAG_NET, },
+   [NET_WRITE_RATE] = { .name = "NET_WRITE_RATE", .title = " NET WRITE ", .description = "The I/O rate of write(2) in bytes per second for the process", .flags = PROCESS_FLAG_NET, },
+   [NET_RATE] = { .name = "NET_RATE", .title = "   NET R/W ", .description = "Total I/O rate in bytes per second", .flags = PROCESS_FLAG_NET, },
 #ifdef HAVE_CGROUP
    [CGROUP] = { .name = "CGROUP", .title = "    CGROUP ", .description = "Which cgroup the process is in", .flags = PROCESS_FLAG_LINUX_CGROUP, },
 #endif
@@ -371,6 +393,14 @@ void LinuxProcess_writeField(Process* this, RichString* str, ProcessField field)
                        : -1;
       Process_outputRate(str, buffer, n, totalRate, coloring); return;
    }
+   case RAW_READ_RATE:  Process_outputRate(str, buffer, n, lp->raw_rate_read_bps, coloring); return;
+   case RAW_WRITE_RATE: Process_outputRate(str, buffer, n, lp->raw_rate_write_bps, coloring); return;
+   case RAW_RATE: {
+      double totalRate = (lp->raw_rate_read_bps != -1)
+                       ? (lp->raw_rate_read_bps + lp->raw_rate_write_bps)
+                       : -1;
+      Process_outputRate(str, buffer, n, totalRate, coloring); return;
+   }
    #endif
    #ifdef HAVE_OPENVZ
    case CTID: xSnprintf(buffer, n, "%7u ", lp->ctid); break;
@@ -406,6 +436,14 @@ void LinuxProcess_writeField(Process* this, RichString* str, ProcessField field)
    case PERCENT_IO_DELAY: LinuxProcess_printDelay(lp->blkio_delay_percent, buffer, n); break;
    case PERCENT_SWAP_DELAY: LinuxProcess_printDelay(lp->swapin_delay_percent, buffer, n); break;
    #endif
+   case NET_READ_RATE:  Process_outputRate(str, buffer, n, lp->net_rate_read_bps, coloring); return;
+   case NET_WRITE_RATE: Process_outputRate(str, buffer, n, lp->net_rate_write_bps, coloring); return;
+   case NET_RATE: {
+      double totalRate = (lp->net_rate_read_bps != -1)
+                       ? (lp->net_rate_read_bps + lp->net_rate_write_bps)
+                       : -1;
+      Process_outputRate(str, buffer, n, totalRate, coloring); return;
+   }
    default:
       Process_writeField((Process*)this, str, field);
       return;
@@ -456,6 +494,9 @@ long LinuxProcess_compare(const void* v1, const void* v2) {
    case IO_READ_RATE:  diff = p2->io_rate_read_bps - p1->io_rate_read_bps; goto test_diff;
    case IO_WRITE_RATE: diff = p2->io_rate_write_bps - p1->io_rate_write_bps; goto test_diff;
    case IO_RATE: diff = (p2->io_rate_read_bps + p2->io_rate_write_bps) - (p1->io_rate_read_bps + p1->io_rate_write_bps); goto test_diff;
+   case RAW_READ_RATE:  diff = p2->raw_rate_read_bps - p1->raw_rate_read_bps; goto test_diff;
+   case RAW_WRITE_RATE: diff = p2->raw_rate_write_bps - p1->raw_rate_write_bps; goto test_diff;
+   case RAW_RATE: diff = (p2->raw_rate_read_bps + p2->raw_rate_write_bps) - (p1->raw_rate_read_bps + p1->raw_rate_write_bps); goto test_diff;
    #endif
    #ifdef HAVE_OPENVZ
    case CTID:
@@ -483,6 +524,9 @@ long LinuxProcess_compare(const void* v1, const void* v2) {
    #endif
    case IO_PRIORITY:
       return LinuxProcess_effectiveIOPriority(p1) - LinuxProcess_effectiveIOPriority(p2);
+   case NET_READ_RATE:  diff = p2->net_rate_read_bps - p1->net_rate_read_bps; goto test_diff;
+   case NET_WRITE_RATE: diff = p2->net_rate_write_bps - p1->net_rate_write_bps; goto test_diff;
+   case NET_RATE: diff = (p2->net_rate_read_bps + p2->net_rate_write_bps) - (p1->net_rate_read_bps + p1->net_rate_write_bps); goto test_diff;
    default:
       return Process_compare(v1, v2);
    }

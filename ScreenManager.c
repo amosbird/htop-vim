@@ -15,6 +15,7 @@ in the source distribution for its full text.
 #include <time.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <signal.h>
 
 /*{
 #include "FunctionBar.h"
@@ -160,10 +161,12 @@ static Panel* setCurrentPanel(Panel* panel) {
    return panel;
 }
 
+extern volatile int suspend;
+
 void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
    bool quit = false;
    int focus = 0;
-   
+
    Panel* panelFocus = setCurrentPanel((Panel*) Vector_get(this->panels, focus));
 
    double oldTime = 0.0;
@@ -177,11 +180,28 @@ void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
    int sortTimeout = 0;
    int resetSortTimeout = 5;
 
+   sigset_t set;
+   int sig;
+
+   sigemptyset(&set);
+   sigaddset(&set, SIGUSR2);
+   sigprocmask(SIG_BLOCK, &set, NULL);
+
+   /* FILE *f; */
+   /* f = fopen("/tmp/x.log", "a+"); */
+
    while (!quit) {
+      if (suspend) {
+         sigwait(&set, &sig);
+         suspend = 0;
+      }
+      /* fprintf(f, "%s  %d\n", ss, rand()); */
+      /* fflush(f); */
+
       if (this->header) {
          checkRecalculation(this, &oldTime, &sortTimeout, &redraw, &rescan, &timedOut);
       }
-      
+
       if (redraw) {
          ScreenManager_drawPanels(this, focus);
       }
@@ -269,7 +289,7 @@ void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
          quit = true;
          continue;
       }
-      
+
       switch (ch) {
       case KEY_RESIZE:
       {
@@ -277,10 +297,7 @@ void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
          continue;
       }
       case KEY_LEFT:
-      case KEY_CTRL('B'):
-         if (this->panelCount < 2) {
-            goto defaultHandler;
-         }
+      case 'h':
          if (!this->allowFocusChange)
             break;
          tryLeft:
@@ -291,7 +308,7 @@ void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
             goto tryLeft;
          break;
       case KEY_RIGHT:
-      case KEY_CTRL('F'):
+      case 'l':
       case 9:
          if (this->panelCount < 2) {
             goto defaultHandler;
@@ -306,7 +323,6 @@ void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
             goto tryRight;
          break;
       case KEY_F(10):
-      case 'q':
       case 27:
          quit = true;
          continue;

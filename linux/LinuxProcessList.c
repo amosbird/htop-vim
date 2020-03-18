@@ -401,6 +401,8 @@ static void LinuxProcessList_readIoFile(LinuxProcess* process, const char* dirna
    if (fd == -1) {
       process->io_rate_read_bps = -1;
       process->io_rate_write_bps = -1;
+      process->raw_rate_read_bps = -1;
+      process->raw_rate_write_bps = -1;
       process->io_rchar = -1LL;
       process->io_wchar = -1LL;
       process->io_syscr = -1LL;
@@ -410,6 +412,8 @@ static void LinuxProcessList_readIoFile(LinuxProcess* process, const char* dirna
       process->io_cancelled_write_bytes = -1LL;
       process->io_rate_read_time = -1LL;
       process->io_rate_write_time = -1LL;
+      process->raw_rate_read_time = -1LL;
+      process->raw_rate_write_time = -1LL;
       return;
    }
    
@@ -418,6 +422,8 @@ static void LinuxProcessList_readIoFile(LinuxProcess* process, const char* dirna
    close(fd);
    if (buflen < 1) return;
    buffer[buflen] = '\0';
+   unsigned long long last_read_raw = process->io_rchar;
+   unsigned long long last_write_raw = process->io_wchar;
    unsigned long long last_read = process->io_read_bytes;
    unsigned long long last_write = process->io_write_bytes;
    char *buf = buffer;
@@ -425,9 +431,12 @@ static void LinuxProcessList_readIoFile(LinuxProcess* process, const char* dirna
    while ((line = strsep(&buf, "\n")) != NULL) {
       switch (line[0]) {
       case 'r':
-         if (line[1] == 'c' && strncmp(line+2, "har: ", 5) == 0)
+         if (line[1] == 'c' && strncmp(line+2, "har: ", 5) == 0) {
             process->io_rchar = strtoull(line+7, NULL, 10);
-         else if (strncmp(line+1, "ead_bytes: ", 11) == 0) {
+            process->raw_rate_read_bps =
+               ((double)(process->io_rchar - last_read_raw))/(((double)(now - process->raw_rate_read_time))/1000);
+            process->raw_rate_read_time = now;
+         } else if (strncmp(line+1, "ead_bytes: ", 11) == 0) {
             process->io_read_bytes = strtoull(line+12, NULL, 10);
             process->io_rate_read_bps = 
                ((double)(process->io_read_bytes - last_read))/(((double)(now - process->io_rate_read_time))/1000);
@@ -435,9 +444,12 @@ static void LinuxProcessList_readIoFile(LinuxProcess* process, const char* dirna
          }
          break;
       case 'w':
-         if (line[1] == 'c' && strncmp(line+2, "har: ", 5) == 0)
+         if (line[1] == 'c' && strncmp(line+2, "har: ", 5) == 0) {
             process->io_wchar = strtoull(line+7, NULL, 10);
-         else if (strncmp(line+1, "rite_bytes: ", 12) == 0) {
+            process->raw_rate_write_bps =
+               ((double)(process->io_wchar - last_write_raw))/(((double)(now - process->raw_rate_write_time))/1000);
+            process->raw_rate_write_time = now;
+         } else if (strncmp(line+1, "rite_bytes: ", 12) == 0) {
             process->io_write_bytes = strtoull(line+13, NULL, 10);
             process->io_rate_write_bps = 
                ((double)(process->io_write_bytes - last_write))/(((double)(now - process->io_rate_write_time))/1000);
@@ -461,6 +473,57 @@ static void LinuxProcessList_readIoFile(LinuxProcess* process, const char* dirna
 
 #endif
 
+
+static void LinuxProcessList_readNet(LinuxProcess* process, const char* dirname, char* name, unsigned long long now) {
+   if (strcmp(dirname, "/") == 0) return;
+   char filename[MAX_NAME+1];
+   filename[MAX_NAME] = '\0';
+
+   xSnprintf(filename, MAX_NAME, "%s/%s/net/dev", dirname, name);
+   int fd = open(filename, O_RDONLY);
+   if (fd == -1) {
+      process->net_rate_read_bps = -1;
+      process->net_rate_write_bps = -1;
+      process->net_read_bytes = -1LL;
+      process->net_write_bytes = -1LL;
+      process->net_rate_read_time = -1LL;
+      process->net_rate_write_time = -1LL;
+      return;
+   }
+
+   char buffer[1024];
+   ssize_t buflen = xread(fd, buffer, 1023);
+   close(fd);
+   if (buflen < 1) return;
+   buffer[buflen] = '\0';
+   unsigned long long last_read = process->net_read_bytes;
+   unsigned long long last_write = process->net_write_bytes;
+   char *buf = buffer;
+   char *line = NULL;
+
+   int linum = 0;
+   while ((line = strsep(&buf, "\n")) != NULL) {
+      if (linum < 2) {
+         linum++;
+         continue;
+      }
+      break;
+   }
+   process->net_read_bytes = 0;
+   process->net_write_bytes = 0;
+   while ((line = strsep(&buf, "\n")) != NULL) {
+      unsigned long long int rbytes, wbytes;
+      sscanf(line, " %*[a-zA-Z0-9]:%llu %*u %*u %*u %*u %*u %*u %*u %llu", &rbytes, &wbytes);
+      process->net_read_bytes += rbytes;
+      process->net_write_bytes += wbytes;
+   }
+   process->net_rate_read_bps =
+      ((double)(process->net_read_bytes - last_read))/(((double)(now - process->net_rate_read_time))/1000);
+   process->net_rate_write_bps =
+      ((double)(process->net_write_bytes - last_write))/(((double)(now - process->net_rate_write_time))/1000);
+   process->net_rate_read_time = now;
+   process->net_rate_write_time = now;
+}
 
 
 static bool LinuxProcessList_readStatmFile(LinuxProcess* process, const char* dirname, const char* name) {
@@ -811,6 +874,9 @@ static bool LinuxProcessList_recurseProcTree(LinuxProcessList* this, const char*
       if (settings->flags & PROCESS_FLAG_IO)
          LinuxProcessList_readIoFile(lp, dirname, name, now);
       #endif
+
+      if (settings->flags & PROCESS_FLAG_NET)
+         LinuxProcessList_readNet(lp, dirname, name, now);
 
       if (! LinuxProcessList_readStatmFile(lp, dirname, name))
          goto errorReadingProcess;

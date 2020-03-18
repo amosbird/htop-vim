@@ -6,6 +6,8 @@
 
 by Hisham Muhammad <hisham@gobolinux.org> (2004 - 2016)
 
+by Amos Bird <amosbird@gmail.com> (2017 -)
+
 Introduction
 ------------
 
@@ -17,8 +19,42 @@ but we also have code for running under FreeBSD and Mac OS X
 This software has evolved considerably over the years,
 and is reasonably complete, but there is always room for improvement.
 
-Comparison between `htop` and classic `top`
--------------------------------------------
+Vim keybindings
+----------------
+
+These are the keybindings added in this fork of htop:
+
+```
+    g        to the top (gg in vim)
+
+    u        up 1/2 page
+
+    k
+
+h       l    one character
+
+    j
+
+    d        down 1/2 page
+
+    G        to the end
+
+--------------------------------------------------
+
+    o        Expand/collapse (like in NERDTree)
+```
+
+In order to accomodate these keybindings, the following changes
+were made to the original keybindings:
+
+* 'h' can no longer be used to access the help, leaving Ctrl+F1 & '?'
+* 'k' can no longer be used to kill processes, being replaced with 'x'
+* 'l' can no longer be used to list open files, being replaced with 'L'
+* 'u' can no longer be used to show user processes, being replaced with 'v'
+
+
+Comparison between 'htop' and 'top'
+-----------------------------------
 
 * In `htop` you can scroll the list vertically and horizontally
   to see all processes and full command lines.
