@@ -598,6 +598,7 @@ void CRT_restorePrivileges() {
 void CRT_init(int delay, int colorScheme) {
    initscr();
    noecho();
+   raw();
    CRT_delay = delay;
    if (CRT_delay == 0) {
       CRT_delay = 1;
