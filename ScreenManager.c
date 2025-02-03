@@ -191,10 +191,6 @@ void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
    /* f = fopen("/tmp/x.log", "a+"); */
 
    while (!quit) {
-      if (suspend) {
-         sigwait(&set, &sig);
-         suspend = 0;
-      }
       /* fprintf(f, "%s  %d\n", ss, rand()); */
       /* fflush(f); */
 
@@ -208,7 +204,16 @@ void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
 
       int prevCh = ch;
       set_escdelay(25);
-      ch = getch();
+
+      if (suspend) {
+         ch = CRT_readKey();
+         if (KEY_F(12) == ch) {
+            suspend = 0;
+            continue;
+         }
+      } else {
+         ch = getch();
+      }
 
       HandlerResult result = IGNORED;
       if (ch == KEY_MOUSE) {
@@ -322,6 +327,9 @@ void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
          if (Panel_size(panelFocus) == 0 && focus < this->panelCount - 1)
             goto tryRight;
          break;
+      case KEY_F(12):
+         suspend = 1;
+         continue;
       case KEY_F(10):
       case 27:
          quit = true;
