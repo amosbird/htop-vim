@@ -25,7 +25,7 @@ in the source distribution for its full text.
 #endif
 
 #ifndef MAX_READ
-#define MAX_READ 2048
+#define MAX_READ 10000000
 #endif
 
 typedef struct ProcessList_ {
