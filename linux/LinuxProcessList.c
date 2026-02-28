@@ -749,18 +749,33 @@ static bool LinuxProcessList_readCmdlineFile(Process* process, const char* dirna
    if (fd == -1)
       return false;
          
-   char command[4096+1]; // max cmdline length on Linux
-   int amtRead = xread(fd, command, sizeof(command) - 1);
-   close(fd);
-   int tokenEnd = 0; 
-   int lastChar = 0;
-   if (amtRead == 0) {
-      ((LinuxProcess*)process)->isKernelThread = true;
-      return true;
-   } else if (amtRead < 0) {
-      return false;
+   size_t bufSize = 4096;
+   char* command = xMalloc(bufSize + 1);
+   size_t totalRead = 0;
+   for (;;) {
+      ssize_t amtRead = xread(fd, command + totalRead, bufSize - totalRead);
+      if (amtRead < 0) {
+         close(fd);
+         free(command);
+         return false;
+      }
+      if (amtRead == 0)
+         break;
+      totalRead += amtRead;
+      if (totalRead == bufSize) {
+         bufSize *= 2;
+         command = xRealloc(command, bufSize + 1);
+      }
    }
-   for (int i = 0; i < amtRead; i++) {
+   close(fd);
+   int tokenEnd = 0;
+   int lastChar = 0;
+   if (totalRead == 0) {
+      ((LinuxProcess*)process)->isKernelThread = true;
+      free(command);
+      return true;
+   }
+   for (size_t i = 0; i < totalRead; i++) {
       if (command[i] == '\0' || command[i] == '\n') {
          if (tokenEnd == 0) {
             tokenEnd = i;
@@ -771,11 +786,12 @@ static bool LinuxProcessList_readCmdlineFile(Process* process, const char* dirna
       }
    }
    if (tokenEnd == 0) {
-      tokenEnd = amtRead;
+      tokenEnd = totalRead;
    }
    command[lastChar + 1] = '\0';
    process->basenameOffset = tokenEnd;
    setCommand(process, command, lastChar + 1);
+   free(command);
 
    return true;
 }

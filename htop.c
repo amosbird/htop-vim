@@ -169,7 +169,7 @@ static void millisleep(unsigned long millisec) {
    }
 }
 
-volatile int suspend = 0;
+volatile int suspend = 1;
 
 static void sig_usr(int signo) {
    if (signo == SIGUSR1)
@@ -245,9 +245,6 @@ int main(int argc, char** argv) {
    ProcessList_scan(pl);
    millisleep(75);
    ProcessList_scan(pl);
-
-   if (getenv("HTOP_SUSPEND"))
-      suspend = 1;
 
    if (signal(SIGUSR1, sig_usr) == SIG_ERR)
       fprintf(stderr, "can't catch SIGUSR1");

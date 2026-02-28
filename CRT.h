@@ -31,6 +31,8 @@ in the source distribution for its full text.
 #define KEY_WHEELUP KEY_F(20)
 #define KEY_WHEELDOWN KEY_F(21)
 #define KEY_RECLICK KEY_F(22)
+#define KEY_FOCUSIN KEY_F(23)
+#define KEY_FOCUSOUT KEY_F(24)
 
 //#link curses
 

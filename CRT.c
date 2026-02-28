@@ -42,6 +42,8 @@ in the source distribution for its full text.
 #define KEY_WHEELUP KEY_F(20)
 #define KEY_WHEELDOWN KEY_F(21)
 #define KEY_RECLICK KEY_F(22)
+#define KEY_FOCUSIN KEY_F(23)
+#define KEY_FOCUSOUT KEY_F(24)
 
 //#link curses
 
@@ -171,7 +173,7 @@ static bool CRT_hasColors;
 
 int CRT_delay = 0;
 
-int* CRT_colors;
+int* CRT_colors = NULL;
 
 int CRT_colorSchemes[LAST_COLORSCHEME][LAST_COLORELEMENT] = {
    [COLORSCHEME_DEFAULT] = {
@@ -537,13 +539,13 @@ int CRT_scrollHAmount = 5;
 
 int CRT_scrollWheelVAmount = 10;
 
-char* CRT_termType;
+char* CRT_termType = NULL;
 
 // TODO move color scheme to Settings, perhaps?
 
 int CRT_colorScheme = 0;
 
-void *backtraceArray[128];
+void *backtraceArray[128] = { NULL };
 
 static void CRT_handleSIGTERM(int sgn) {
    (void) sgn;
@@ -597,6 +599,8 @@ void CRT_restorePrivileges() {
 
 void CRT_init(int delay, int colorScheme) {
    initscr();
+   printf("\x1b[?1004h");
+   fflush(stdout);
    noecho();
    raw();
    CRT_delay = delay;
@@ -648,6 +652,9 @@ void CRT_init(int delay, int colorScheme) {
          define_key(sequence, KEY_ALT('A' + (c - 'a')));
       }
    }
+   // Focus reporting keys - works on most modern terminals
+   define_key("\033[I", KEY_F(23));  // FocusIn
+   define_key("\033[O", KEY_F(24));  // FocusOut
 #ifndef DEBUG
    signal(11, CRT_handleSIGSEGV);
 #endif
@@ -684,6 +691,8 @@ void CRT_init(int delay, int colorScheme) {
 
 void CRT_done() {
    curs_set(1);
+   printf("\x1b[?1004l");
+   fflush(stdout);
    endwin();
 }
 

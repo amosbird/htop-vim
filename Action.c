@@ -27,6 +27,7 @@ in the source distribution for its full text.
 #include <pwd.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <fcntl.h>
 #include <sys/param.h>
 #include <sys/time.h>
 
@@ -402,12 +403,50 @@ static Htop_Reaction actionGdb(State* st) {
    return HTOP_OK;
 }
 
+static char* base64Encode(const char* data, size_t len) {
+   static const char alphabet[] =
+      "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+   size_t outLen = 4 * ((len + 2) / 3);
+   char* out = malloc(outLen + 1);
+   if (!out) return NULL;
+   size_t i = 0, j = 0;
+   while (i + 2 < len) {
+      unsigned char a = (unsigned char)data[i];
+      unsigned char b = (unsigned char)data[i + 1];
+      unsigned char c = (unsigned char)data[i + 2];
+      out[j++] = alphabet[(a >> 2) & 0x3F];
+      out[j++] = alphabet[((a & 0x03) << 4) | ((b >> 4) & 0x0F)];
+      out[j++] = alphabet[((b & 0x0F) << 2) | ((c >> 6) & 0x03)];
+      out[j++] = alphabet[c & 0x3F];
+      i += 3;
+   }
+   if (i < len) {
+      unsigned char a = (unsigned char)data[i];
+      unsigned char b = (i + 1 < len) ? (unsigned char)data[i + 1] : 0;
+      out[j++] = alphabet[(a >> 2) & 0x3F];
+      out[j++] = alphabet[((a & 0x03) << 4) | ((b >> 4) & 0x0F)];
+      out[j++] = (i + 1 < len) ? alphabet[((b & 0x0F) << 2)] : '=';
+      out[j++] = '=';
+   }
+   out[j] = '\0';
+   return out;
+}
+
 static Htop_Reaction actionYankCommand(State* st) {
    Process* p = (Process*) Panel_getSelected(st->panel);
    if (!p) return HTOP_OK;
-   FILE * f = popen("osc52clip", "w");
-   fwrite(p->comm, 1, p->commLen, f);
-   pclose(f);
+   char* b64 = base64Encode(p->comm, p->commLen);
+   if (!b64) return HTOP_OK;
+   FILE* tty = fopen("/dev/tty", "w");
+   if (tty) {
+      if (getenv("TMUX")) {
+         fprintf(tty, "\x1bPtmux;\x1b\x1b]52;c;%s\x07\x1b\\", b64);
+      } else {
+         fprintf(tty, "\x1b]52;c;%s\x07", b64);
+      }
+      fclose(tty);
+   }
+   free(b64);
    return HTOP_OK;
 }
 

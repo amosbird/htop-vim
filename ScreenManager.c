@@ -207,8 +207,9 @@ void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
 
       if (suspend) {
          ch = CRT_readKey();
-         if (KEY_F(12) == ch) {
+         if (KEY_F(12) == ch || KEY_FOCUSIN == ch) {
             suspend = 0;
+            timedOut = true;
             continue;
          }
       } else {
@@ -327,6 +328,13 @@ void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
          if (Panel_size(panelFocus) == 0 && focus < this->panelCount - 1)
             goto tryRight;
          break;
+      case KEY_FOCUSIN:
+         suspend = 0;
+         timedOut = true;
+         continue;
+      case KEY_FOCUSOUT:
+         suspend = 1;
+         continue;
       case KEY_F(12):
          suspend = 1;
          continue;
