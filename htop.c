@@ -25,7 +25,6 @@ in the source distribution for its full text.
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
-#include <signal.h>
 
 //#link m
 
@@ -159,25 +158,6 @@ static CommandLineSettings parseArguments(int argc, char** argv) {
    return flags;
 }
 
-static void millisleep(unsigned long millisec) {
-   struct timespec req = {
-      .tv_sec = 0,
-      .tv_nsec = millisec * 1000000L
-   };
-   while(nanosleep(&req,&req)==-1) {
-      continue;
-   }
-}
-
-volatile int suspend = 1;
-
-static void sig_usr(int signo) {
-   if (signo == SIGUSR1)
-      suspend = 1;
-   else if (signo == SIGUSR2)
-      suspend = 0;
-}
-
 int main(int argc, char** argv) {
 
    char *lc_ctype = getenv("LC_CTYPE");
@@ -241,16 +221,6 @@ int main(int argc, char** argv) {
 
    ScreenManager* scr = ScreenManager_new(0, header->height, 0, -1, HORIZONTAL, header, settings, true);
    ScreenManager_add(scr, (Panel*) panel, -1);
-
-   ProcessList_scan(pl);
-   millisleep(75);
-   ProcessList_scan(pl);
-
-   if (signal(SIGUSR1, sig_usr) == SIG_ERR)
-      fprintf(stderr, "can't catch SIGUSR1");
-
-   if (signal(SIGUSR2, sig_usr) == SIG_ERR)
-      fprintf(stderr, "can't catch SIGUSR2");
 
    ScreenManager_run(scr, NULL, NULL);
 

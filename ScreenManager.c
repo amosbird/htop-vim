@@ -10,12 +10,12 @@ in the source distribution for its full text.
 
 #include "Object.h"
 #include "CRT.h"
+#include "FocusState.h"
 
 #include <assert.h>
 #include <time.h>
 #include <stdlib.h>
 #include <stdbool.h>
-#include <signal.h>
 
 /*{
 #include "FunctionBar.h"
@@ -161,7 +161,7 @@ static Panel* setCurrentPanel(Panel* panel) {
    return panel;
 }
 
-extern volatile int suspend;
+static FocusState terminalFocus = FOCUS_UNKNOWN;
 
 void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
    bool quit = false;
@@ -180,19 +180,23 @@ void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
    int sortTimeout = 0;
    int resetSortTimeout = 5;
 
-   sigset_t set;
-   int sig;
-
-   sigemptyset(&set);
-   sigaddset(&set, SIGUSR2);
-   sigprocmask(SIG_BLOCK, &set, NULL);
-
-   /* FILE *f; */
-   /* f = fopen("/tmp/x.log", "a+"); */
-
    while (!quit) {
-      /* fprintf(f, "%s  %d\n", ss, rand()); */
-      /* fflush(f); */
+      int prevCh = ch;
+      set_escdelay(25);
+      ch = FocusState_isActive(terminalFocus) ? getch() : CRT_readKey();
+
+      bool focusIn = ch == KEY_FOCUSIN;
+      if (focusIn) {
+         terminalFocus = FocusState_update(terminalFocus, true);
+         timedOut = true;
+         rescan = true;
+         redraw = true;
+      } else if (ch == KEY_FOCUSOUT) {
+         terminalFocus = FocusState_update(terminalFocus, false);
+         continue;
+      }
+      if (!FocusState_isActive(terminalFocus))
+         continue;
 
       if (this->header) {
          checkRecalculation(this, &oldTime, &sortTimeout, &redraw, &rescan, &timedOut);
@@ -201,20 +205,8 @@ void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
       if (redraw) {
          ScreenManager_drawPanels(this, focus);
       }
-
-      int prevCh = ch;
-      set_escdelay(25);
-
-      if (suspend) {
-         ch = CRT_readKey();
-         if (KEY_F(12) == ch || KEY_FOCUSIN == ch) {
-            suspend = 0;
-            timedOut = true;
-            continue;
-         }
-      } else {
-         ch = getch();
-      }
+      if (focusIn)
+         continue;
 
       HandlerResult result = IGNORED;
       if (ch == KEY_MOUSE) {
@@ -328,16 +320,6 @@ void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
          if (Panel_size(panelFocus) == 0 && focus < this->panelCount - 1)
             goto tryRight;
          break;
-      case KEY_FOCUSIN:
-         suspend = 0;
-         timedOut = true;
-         continue;
-      case KEY_FOCUSOUT:
-         suspend = 1;
-         continue;
-      case KEY_F(12):
-         suspend = 1;
-         continue;
       case KEY_F(10):
       case 27:
          quit = true;
