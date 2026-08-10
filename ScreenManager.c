@@ -181,31 +181,32 @@ void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
    int resetSortTimeout = 5;
 
    while (!quit) {
+      if (FocusState_nextAction(terminalFocus) == FOCUS_WORK_THEN_READ) {
+         if (this->header) {
+            checkRecalculation(this, &oldTime, &sortTimeout, &redraw, &rescan, &timedOut);
+         }
+
+         if (redraw) {
+            ScreenManager_drawPanels(this, focus);
+         }
+      }
+
       int prevCh = ch;
       set_escdelay(25);
       ch = FocusState_isActive(terminalFocus) ? getch() : CRT_readKey();
 
-      bool focusIn = ch == KEY_FOCUSIN;
-      if (focusIn) {
+      if (ch == KEY_FOCUSIN) {
          terminalFocus = FocusState_update(terminalFocus, true);
          timedOut = true;
          rescan = true;
          redraw = true;
-      } else if (ch == KEY_FOCUSOUT) {
+         continue;
+      }
+      if (ch == KEY_FOCUSOUT) {
          terminalFocus = FocusState_update(terminalFocus, false);
          continue;
       }
       if (!FocusState_isActive(terminalFocus))
-         continue;
-
-      if (this->header) {
-         checkRecalculation(this, &oldTime, &sortTimeout, &redraw, &rescan, &timedOut);
-      }
-
-      if (redraw) {
-         ScreenManager_drawPanels(this, focus);
-      }
-      if (focusIn)
          continue;
 
       HandlerResult result = IGNORED;

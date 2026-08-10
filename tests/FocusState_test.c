@@ -6,10 +6,13 @@ int main(void) {
    FocusState state = FOCUS_UNKNOWN;
 
    assert(!FocusState_isActive(state));
+   assert(FocusState_nextAction(state) == FOCUS_READ_ONLY);
    state = FocusState_update(state, true);
    assert(FocusState_isActive(state));
+   assert(FocusState_nextAction(state) == FOCUS_WORK_THEN_READ);
    state = FocusState_update(state, false);
    assert(!FocusState_isActive(state));
+   assert(FocusState_nextAction(state) == FOCUS_READ_ONLY);
 
    return 0;
 }
