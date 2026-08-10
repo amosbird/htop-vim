@@ -14,6 +14,11 @@ typedef enum FocusState_ {
    FOCUS_ACTIVE,
 } FocusState;
 
+static inline FocusState FocusState_initial(void) {
+   // shortcut: assume active until the terminal reports FocusOut; CSI 1004 has no portable focus query
+   return FOCUS_ACTIVE;
+}
+
 static inline bool FocusState_isActive(FocusState state) {
    return state == FOCUS_ACTIVE;
 }

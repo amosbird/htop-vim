@@ -161,9 +161,10 @@ static Panel* setCurrentPanel(Panel* panel) {
    return panel;
 }
 
-static FocusState terminalFocus = FOCUS_UNKNOWN;
+static FocusState terminalFocus;
 
 void ScreenManager_run(ScreenManager* this, Panel** lastFocus, int* lastKey) {
+   terminalFocus = FocusState_initial();
    bool quit = false;
    int focus = 0;
 
